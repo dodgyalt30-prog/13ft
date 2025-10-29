@@ -1,3 +1,4 @@
+import os
 import flask
 import requests
 from flask import request
@@ -8,6 +9,7 @@ app = flask.Flask(__name__)
 googlebot_headers = {
     "User-Agent": "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.6533.119 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
 }
+
 html = """
 <!DOCTYPE html>
 <html lang="en">
@@ -114,7 +116,6 @@ html = """
             transform: translateX(-100%);
         }
 
-        /* Responsive adjustments */
         @media only screen and (max-width: 600px) {
             form {
                 padding: 10px;
@@ -125,7 +126,6 @@ html = """
             }
         }
 
-        /* Dark mode styles */
         body.dark-mode {
             background-color: #333;
             color: #FFF;
@@ -192,12 +192,10 @@ def add_base_tag(html_content, original_url):
     parsed_url = urlparse(original_url)
     base_url = f"{parsed_url.scheme}://{parsed_url.netloc}/"
     
-    # Handle paths that are not root, e.g., "https://x.com/some/path/w.html"
     if parsed_url.path and not parsed_url.path.endswith('/'):
         base_url = urljoin(base_url, parsed_url.path.rsplit('/', 1)[0] + '/')
     base_tag = soup.find('base')
     
-    print(base_url)
     if not base_tag:
         new_base_tag = soup.new_tag('base', href=base_url)
         if soup.head:
@@ -210,9 +208,6 @@ def add_base_tag(html_content, original_url):
     return str(soup)
 
 def bypass_paywall(url):
-    """
-    Bypass paywall for a given url
-    """
     if url.startswith("http"):
         response = requests.get(url, headers=googlebot_headers)
         response.encoding = response.apparent_encoding
@@ -220,7 +215,7 @@ def bypass_paywall(url):
 
     try:
         return bypass_paywall("https://" + url)
-    except requests.exceptions.RequestException as e:
+    except requests.exceptions.RequestException:
         return bypass_paywall("http://" + url)
 
 
@@ -236,7 +231,7 @@ def show_article():
         return bypass_paywall(link)
     except requests.exceptions.RequestException as e:
         return str(e), 400
-    except e:
+    except Exception as e:
         raise e
 
 
@@ -251,10 +246,18 @@ def get_article(path):
             return bypass_paywall(actual_url)
         except requests.exceptions.RequestException as e:
             return str(e), 400
-        except e:
+        except Exception as e:
             raise e
     else:
         return "Invalid URL", 400
 
 
-app.run(host="0.0.0.0", port=5000, debug=False)
+# ✅ Fix for the 405 error
+@app.route("/api/tracking", methods=["POST"])
+def tracking():
+    return flask.jsonify({"status": "ok"}), 200
+
+
+# ✅ Dynamic port for Render
+port = int(os.environ.get("PORT", 5000))
+app.run(host="0.0.0.0", port=port, debug=False)
